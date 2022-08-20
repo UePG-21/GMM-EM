@@ -59,17 +59,20 @@ class GaussianMixtureModel:
             stopping_criteria (float): stop iterating when new_ll - old_ll < criteria.
                 Defaults to 0.001.
         """
+        if not isinstance(k, int):
+            raise TypeError("k must be an integer")
         self._k = k  # number of clusters
         self._max_iterations = max_iterations
         self._stopping_criteria = stopping_criteria
-        self._X = None  # training set
+        self._X = None  # training set, n*d
         self._n = None  # sample size
         self._d = None  # dimension of the Gaussian distribution
+        self._missing_lst = None  # missing positions list
         self.alpha_arr: np.ndarray | None = None
         self.mu_arr: np.ndarray | None = None
         self.Sigma_arr: np.ndarray | None = None
         self.ll_lst = []  # log likelihood value list
-
+        
     @staticmethod
     def _report(iteration: int, new_ll: float, ll_improvement: float) -> None:
         """Report the result of each iteration"""
@@ -114,7 +117,8 @@ class GaussianMixtureModel:
         # alpha_arr is initially k equal values
         self.alpha_arr = np.ones((self._k,)) / self._k
         # mu_arr is initially k samples drawn from X
-        self.mu_arr = self._X[np.random.randint(0, self._n, self._k)]
+        X_drop = self._X[~np.isnan(self._X).any(axis=1), :]
+        self.mu_arr = self._X[np.random.randint(0, len(X_drop), self._k)]
         # Sigma_arr depends on the dimension of the sample
         if self._d > 1:
             # Sigma_arr is initially k identity matrices
@@ -122,6 +126,10 @@ class GaussianMixtureModel:
         else:
             # Sigma_arr is initially k 1s
             self.sigma_arr = np.ones((self._k,))
+        # fill missing data
+        mu_mean = np.nanmean(self._X, axis=0)
+        for pos in self._missing_lst:
+            self._X[pos] = mu_mean[pos[1]]
 
     def _update_params(self) -> None:
         """Update parameters"""
@@ -144,6 +152,9 @@ class GaussianMixtureModel:
             ]
             Sigma_frac1 = np.array(raw).sum(axis=0)
             new_Sigma_arr[j] = Sigma_frac1 / sum_weights if sum_weights > 1e-9 else 0
+            # update missing value estimation
+            for pos in self._missing_lst:
+                self._X[pos] = new_mu_arr[self.predict(self._X[pos[0]])[0], pos[1]]
         self.alpha_arr = new_alpha_arr
         self.mu_arr = new_mu_arr
         self.Sigma_arr = new_Sigma_arr
@@ -161,6 +172,7 @@ class GaussianMixtureModel:
         self._X = X
         self._n = X.shape[0]
         self._d = X.shape[1] if X.ndim == 2 else 1
+        self._missing_lst = list(map(tuple, np.argwhere(np.isnan(X))))
         # initialize parameters
         self._init_params()
         # update parameters

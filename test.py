@@ -1,8 +1,7 @@
 import numpy as np
-from matplotlib import pyplot as plt
-from randutils import RandomVector
 from gmm import GaussianMixtureModel
-
+from randlinalg import RandomVector
+from matplotlib import pyplot as plt
 
 if __name__ == "__main__":
     mu1 = np.array([10, 10, 10])
@@ -18,18 +17,27 @@ if __name__ == "__main__":
     n1 = 200
     n2 = 500
     n3 = 300
+
     X = np.array(
         [rv1() for _ in range(n1)]
         + [rv2() for _ in range(n2)]
         + [rv3() for _ in range(n3)]
     )
+    Y = X[:200]
+
+    nan_pos = [
+        (0, 1), (1, 2), (13, 0), (45, 2), (78, 1),
+        (230, 0), (259, 1), (290, 2), (340, 1), (536, 0),
+        (777, 1), (812, 0), (943, 2)
+    ]
+    for i in nan_pos:
+        X[i] = np.nan
 
     gmm = GaussianMixtureModel(3)
     gmm.fit(X)
     print(gmm.alpha_arr)
     print(gmm.mu_arr)
     print(gmm.Sigma_arr)
-    print(gmm.predict(X[0]))
 
     plt.plot(gmm.ll_lst)
     plt.show()
